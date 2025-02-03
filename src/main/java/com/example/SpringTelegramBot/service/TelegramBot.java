@@ -1,14 +1,13 @@
 package com.example.SpringTelegramBot.service;
 
 import com.example.SpringTelegramBot.config.BotConfig;
-import com.example.SpringTelegramBot.model.User;
+import com.example.SpringTelegramBot.entity.User;
 import com.example.SpringTelegramBot.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
@@ -21,13 +20,19 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
-@Service
+import java.util.Optional;
+
+@Transactional
 @Data
 @Slf4j
 @Component
+
 public class TelegramBot extends TelegramLongPollingBot {
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private final UserService userService;
 
     final BotConfig config;
     static final String HELP_TEXT = "This bot is created to demonstrate Spring capabilities.\n\n" +
@@ -38,7 +43,8 @@ public class TelegramBot extends TelegramLongPollingBot {
 
 
 
-    public TelegramBot(BotConfig config) {
+    public TelegramBot(UserService userService, BotConfig config) {
+        this.userService = userService;
         this.config = config;
         List<BotCommand> listOfCommands = new ArrayList<>();
         listOfCommands.add(new BotCommand("/start", "get a welcome message"));
@@ -53,6 +59,7 @@ public class TelegramBot extends TelegramLongPollingBot {
             log.error("Error setting bot`s command list:{}", e.getMessage());
         }
     }
+
 
     @Override
     public String getBotUsername() {
@@ -69,6 +76,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         if (update.hasMessage() && update.getMessage().hasText()) {
             String messageText = update.getMessage().getText();
             long chatId = update.getMessage().getChatId();
+
 
             switch (messageText) {
                 case "/start":
@@ -89,10 +97,10 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     private void registerUser(Message msg) {
         if(userRepository.findById(msg.getChatId()).isEmpty()) {
-            var chatId = msg.getChatId();
+            var telegramId = msg.getChatId();
             var chat=msg.getChat();
             User user = new User();
-            user.setChatId(chatId);
+            user.setTelegramId(telegramId);
             user.setFirstName(chat.getFirstName());
             user.setLastName(chat.getLastName());
             user.setUserName(chat.getUserName());
@@ -104,15 +112,15 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
 
 
-    private void startCommandReceived(long chatId, String name)  {
+    private void startCommandReceived(long telegramId, String name)  {
         String answer = "Hi, " + name + ", nice to meet you!";
         log.info("Replied to user{}", name);
-        sendMessage(chatId, answer);
+        sendMessage(telegramId, answer);
     }
 
-    private void sendMessage(long chatId, String textToSend) {
+    private void sendMessage(long telegramId, String textToSend) {
         SendMessage message = new SendMessage();
-        message.setChatId(String.valueOf(chatId));
+        message.setChatId(String.valueOf(telegramId));
         message.setText(textToSend);
 
         try {
@@ -123,5 +131,25 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         }
     }
+    @Transactional
+    public void registerUser(User user) {
+        userRepository.save(user);
+    }
+    @Transactional
+    public void registerOrUpdateUser(User user) {
+        Optional<User> existingUser = userRepository.findById(user.getTelegramId());
+
+        if (existingUser.isPresent()) {
+            User existing = existingUser.get();
+            existing.setFirstName(user.getFirstName());
+            existing.setLastName(user.getLastName());
+            existing.setUserName(user.getUserName());
+            existing.setRegisteredAt(user.getRegisteredAt());
+            user = existing; // Используем загруженный объект
+        }
+
+        userRepository.save(user); // Теперь Hibernate не выбросит ошибку
+    }
+
 }
 
