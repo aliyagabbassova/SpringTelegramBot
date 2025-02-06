@@ -45,6 +45,17 @@
             <version>42.7.1</version>
         </dependency>
 
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.vdurmont</groupId>
+            <artifactId>emoji-java</artifactId>
+            <version>5.1.1</version>
+        </dependency>
+
         <!-- JDBC -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
