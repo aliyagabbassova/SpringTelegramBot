@@ -62,4 +62,21 @@ public class UserService {
             log.info("Пользователь успешно сохранён!");
         }
     }
-}
+    public Optional<User> getUserByTelegramId(Long telegramId) {
+        return userRepository.findByTelegramId(telegramId);
+    }
+
+    @Transactional
+    public boolean deleteUserByTelegramId(Long telegramId) {
+            Optional<User> user = userRepository.findByTelegramId(telegramId);
+            if (user.isPresent()) {
+                userRepository.delete(user.get());
+                log.info("Удалён пользователь с telegramId: {}", telegramId);
+                return true;
+            } else {
+                log.warn("Не найден пользователь с telegramId: {}", telegramId);
+                return false;
+            }
+        }
+    }
+

@@ -81,6 +81,29 @@ public class TelegramBot extends TelegramLongPollingBot {
                     sendMessage(telegramId, answer);
                     break;
 
+                case "/mydata":
+                    Optional<User> userData = userService.getUserByTelegramId(telegramId);
+                    if (userData.isPresent()) {
+//                        User user = userData.get();
+                        String userInfo = "Ваши данные:\n" +
+                                "Имя: " + user.getFirstName() + "\n" +
+                                "Фамилия: " + (user.getLastName() != null ? user.getLastName() : "Не указана") + "\n" +
+                                "Username: " + (user.getUserName() != null ? user.getUserName() : "Не указан") + "\n" +
+                                "Дата регистрации: " + user.getRegisteredAt();
+                        sendMessage(telegramId, userInfo);
+                    } else {
+                        sendMessage(telegramId, "Ваши данные не найдены.");
+                    }
+                    break;
+                case "/deletedata":
+                    boolean deleted = userService.deleteUserByTelegramId(telegramId);
+                    if (deleted) {
+                        sendMessage(telegramId, "Ваши данные были успешно удалены.");
+                    } else {
+                        sendMessage(telegramId, "Ваши данные не найдены.");
+                    }
+                    break;
+
                 case "/help":
                     sendMessage(telegramId, HELP_TEXT);
                     break;
