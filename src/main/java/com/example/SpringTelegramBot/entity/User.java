@@ -13,7 +13,6 @@ import java.util.List;
 
 @Getter
 @Setter
-@Data
 @Entity
 @Table(name = "telegram_bot")
 @Cacheable
@@ -22,8 +21,7 @@ import java.util.List;
 public class User {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "telegramId")
+    @Column(unique = true,name = "telegramId")
     private Long telegramId;
 
     @Column(name = "firstName")
@@ -38,8 +36,11 @@ public class User {
     @Column(name = "registeredAt")
     private Timestamp registeredAt;
 
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
     private List<BotEntity> bots = new ArrayList<>();
+
+    @Version
+    private Integer version;
 
     @Override
     public String toString() {
@@ -51,6 +52,5 @@ public class User {
                 ", registeredAt=" + registeredAt +
                 '}';
     }
-    @Version
-    private Integer version;
+
 }
