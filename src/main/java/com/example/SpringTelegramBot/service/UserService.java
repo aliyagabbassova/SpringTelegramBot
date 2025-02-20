@@ -53,6 +53,7 @@ public class UserService {
             userToUpdate.setFirstName(user.getFirstName());
             userToUpdate.setLastName(user.getLastName());
             userToUpdate.setUserName(user.getUserName());
+            userToUpdate.setPhoneNumber(user.getPhoneNumber());
 
             userRepository.save(userToUpdate);
             log.info("Обновлены данные пользователя: {}", userToUpdate);
@@ -78,5 +79,18 @@ public class UserService {
                 return false;
             }
         }
+
+    @Transactional
+    public void savePhoneNumber(Long telegramId, String phoneNumber) {
+        Optional<User> userOptional = userRepository.findByTelegramId(telegramId);
+        if (userOptional.isPresent()) {
+            User user = userOptional.get();
+            user.setPhoneNumber(phoneNumber);
+            userRepository.save(user);
+            log.info("Сохранён номер телефона для пользователя {}: {}", telegramId, phoneNumber);
+        } else {
+            log.warn("Не удалось найти пользователя с telegramId: {}", telegramId);
+        }
     }
+}
 

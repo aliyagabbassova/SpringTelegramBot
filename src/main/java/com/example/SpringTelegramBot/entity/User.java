@@ -36,11 +36,15 @@ public class User {
     @Column(name = "registeredAt")
     private Timestamp registeredAt;
 
+    @Column(name = "phone_number")
+    private String phoneNumber;
+
     @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
     private List<BotEntity> bots = new ArrayList<>();
 
     @Version
     private Integer version;
+
 
     @Override
     public String toString() {
