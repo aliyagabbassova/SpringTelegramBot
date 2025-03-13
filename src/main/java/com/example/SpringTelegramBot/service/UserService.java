@@ -19,27 +19,6 @@ public class UserService {
     }
 
     @Transactional
-    public void registerUser(Update update) {
-        Long telegramId = update.getMessage().getFrom().getId();
-        Optional<User> optionalUser = userRepository.findByTelegramId(telegramId);
-
-        User user = optionalUser.orElseGet(() -> {
-            User newUser = new User();
-            newUser.setTelegramId(telegramId);
-            newUser.setFirstName(update.getMessage().getFrom().getFirstName());
-            newUser.setLastName(update.getMessage().getFrom().getLastName());
-            newUser.setRegisteredAt(new Timestamp(System.currentTimeMillis()));
-            newUser.setVersion(0);  // Устанавливаем начальную версию
-            return newUser;
-        });
-
-// Теперь сохраняем только если данные изменились
-        userRepository.save(user);
-        log.info("Попытка сохранить пользователя: {}", user);
-    }
-
-
-    @Transactional
     public void registerOrUpdateUser(User user) {
 
         log.info("Запуск метода registerOrUpdateUser() с пользователем: {}", user);
@@ -54,6 +33,7 @@ public class UserService {
             userToUpdate.setLastName(user.getLastName());
             userToUpdate.setUserName(user.getUserName());
             userToUpdate.setPhoneNumber(user.getPhoneNumber());
+            userToUpdate.setPersonalAccount(user.getPersonalAccount());
 
             userRepository.save(userToUpdate);
             log.info("Обновлены данные пользователя: {}", userToUpdate);
@@ -91,6 +71,38 @@ public class UserService {
         } else {
             log.warn("Не удалось найти пользователя с telegramId: {}", telegramId);
         }
+    }
+    @Transactional
+    public void savePersonalAccount(Long telegramId, Integer personalAccount) {
+        Optional<User> userOptional = userRepository.findByTelegramId(telegramId);
+        if (userOptional.isPresent()) {
+            User user = userOptional.get();
+            user.setPersonalAccount(personalAccount);
+            userRepository.save(user);
+            log.info("Сохранён номер лицевого счета {}: {}", telegramId, personalAccount);
+        } else {
+            log.warn("Не удалось найти пользователя с telegramId: {}", telegramId);
+        }
+    }
+
+    public void saveMeterReading(Long telegramId, Integer newReading) {
+        Optional<User> userOptional = userRepository.findByTelegramId(telegramId);
+        userOptional.ifPresent(user -> {
+            Integer lastReading = user.getLastMeterReading();
+            if (lastReading != null) {
+                int consumption = newReading - lastReading;
+                log.info("User {} used {} cubic meters of water.", telegramId, consumption);
+            } else {
+                log.info("First meter reading recorded for user {}.", telegramId);
+            }
+            user.setLastMeterReading(newReading);
+            userRepository.save(user);
+        });
+    }
+    public boolean hasPersonalAccount(Long telegramId) {
+        return userRepository.findByTelegramId(telegramId)
+                .map(user -> user.getPersonalAccount() != null)
+                .orElse(false);
     }
 }
 

@@ -36,8 +36,15 @@ public class User {
     @Column(name = "registeredAt")
     private Timestamp registeredAt;
 
-    @Column(name = "phone_number")
+    @Column(name = "phoneNumber")
     private String phoneNumber;
+
+    @Column(name = "personalAccount")
+    private Integer personalAccount;
+
+    @Column
+    private Integer lastMeterReading;
+
 
     @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
     private List<BotEntity> bots = new ArrayList<>();
