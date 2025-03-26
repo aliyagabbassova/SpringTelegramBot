@@ -42,7 +42,7 @@ public class User {
     @Column(name = "personalAccount")
     private Integer personalAccount;
 
-    @Column
+    @Column(name= "lastMeterReading")
     private Integer lastMeterReading;
 
 

@@ -118,6 +118,19 @@ public class TelegramBot extends TelegramLongPollingBot {
                     }
                     return;
                 }
+                if (update.hasMessage() && update.getMessage().hasText()) {
+                    String messageText = update.getMessage().getText();
+                    Long chatId = update.getMessage().getChatId();
+
+                    if (messageText.equals("Ввести показания")) {
+                        sendMessage(chatId, "Введите новое показание счетчика:");
+                    } else if (messageText.matches("\\d+")) {  // Проверяем, ввел ли пользователь число
+                        Integer newReading = Integer.parseInt(messageText);
+                        userService.saveMeterReading(chatId, newReading);
+                        sendMessage(chatId, "Показание сохранено!");
+                    }
+                }
+
                 if ("AWAITING_METER_READING".equals(userStates.get(telegramId))) {
                     if (text.matches("\\d+")) {
                         Integer newReading = Integer.valueOf(text);
@@ -135,7 +148,6 @@ public class TelegramBot extends TelegramLongPollingBot {
 
                 SendMessage sendMessage = new SendMessage();
                 sendMessage.setChatId(String.valueOf(telegramId));
-
 
                 // Добавляем клавиатуру
                 ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
@@ -185,7 +197,8 @@ public class TelegramBot extends TelegramLongPollingBot {
                                             "Фамилия: " + (userData.getLastName() != null ? userData.getLastName() : "Не указана") + "\n" +
                                             "Username: " + (userData.getUserName() != null ? userData.getUserName() : "Не указан") + "\n" +
                                             "Телефон: " + (userData.getPhoneNumber() != null ? userData.getPhoneNumber() : "Не указан") + "\n" +
-                                            "Дата регистрации: " + userData.getRegisteredAt();
+                                            "Дата регистрации: " + userData.getRegisteredAt() + "\n" +
+                                            "Номер лицевого счета: " + userData.getPersonalAccount();
                                     sendMessage(telegramId, userInfo);
                                 },
                                 () -> sendMessage(telegramId, "Ваши данные не найдены.")
@@ -211,6 +224,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
                     case "/meter":
                         sendMessage(telegramId, "Введите новые показания счетчика воды:");
+                        requestLastMeterReading(telegramId);
                         userStates.put(telegramId, "AWAITING_METER_READING");
                         break;
 
@@ -237,7 +251,6 @@ public class TelegramBot extends TelegramLongPollingBot {
         if (textToSend == null || textToSend.isEmpty()) {
             textToSend = "Ошибка: текст сообщения не может быть пустым!";
         }
-
     }
 
     public void requestPhoneNumber(Long telegramId) {
@@ -262,6 +275,30 @@ public class TelegramBot extends TelegramLongPollingBot {
             execute(message);
         } catch (TelegramApiException e) {
             log.error("Ошибка при запросе номера телефона: {}", e.getMessage());
+        }
+    }
+
+    private void requestLastMeterReading(Long telegramId) {
+        SendMessage message = new SendMessage();
+        message.setChatId(telegramId.toString());
+
+        // Создаём кнопку "Ввести показания"
+        KeyboardRow row = new KeyboardRow();
+        row.add("Ввести показания");
+
+        // Добавляем строку кнопок в клавиатуру
+        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
+        keyboardMarkup.setKeyboard(List.of(row));
+        keyboardMarkup.setResizeKeyboard(true);
+        keyboardMarkup.setOneTimeKeyboard(false);
+        keyboardMarkup.setSelective(true);
+
+        message.setReplyMarkup(keyboardMarkup);
+
+        try {
+            execute(message);  // Отправляем сообщение с кнопкой
+        } catch (TelegramApiException e) {
+            log.error("Ошибка при отправке клавиатуры: {}", e.getMessage());
         }
     }
 
@@ -331,7 +368,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         return keyboardMarkup;
 
-        }
+    }
 
     private void executeMessage(SendMessage message) {
         try {
