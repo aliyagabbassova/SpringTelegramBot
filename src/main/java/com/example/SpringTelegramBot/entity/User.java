@@ -45,6 +45,8 @@ public class User {
     @Column(name= "lastMeterReading")
     private Integer lastMeterReading;
 
+    @Column(name= "previousMeterReading")
+    private Integer previousMeterReading;
 
     @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
     private List<BotEntity> bots = new ArrayList<>();

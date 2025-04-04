@@ -4,9 +4,6 @@ import com.example.SpringTelegramBot.entity.User;
 import com.example.SpringTelegramBot.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
-import org.telegram.telegrambots.meta.api.objects.Update;
-
-import java.sql.Timestamp;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 @Slf4j
@@ -84,20 +81,17 @@ public class UserService {
             log.warn("Не удалось найти пользователя с telegramId: {}", telegramId);
         }
     }
-
-    public void saveMeterReading(Long telegramId, Integer newReading) {
+    @Transactional
+    public void saveLastMeterReading(Long telegramId, Integer lastMeterReading) {
         Optional<User> userOptional = userRepository.findByTelegramId(telegramId);
-        userOptional.ifPresent(user -> {
-            Integer lastReading = user.getLastMeterReading();
-            if (lastReading != null) {
-                int consumption = newReading - lastReading;
-                log.info("User {} used {} cubic meters of water.", telegramId, consumption);
-            } else {
-                log.info("First meter reading recorded for user {}.", telegramId);
-            }
-            user.setLastMeterReading(newReading);
+        if (userOptional.isPresent()) {
+            User user = userOptional.get();
+            user.setLastMeterReading(lastMeterReading);
             userRepository.save(user);
-        });
+            log.info("Последние показания счетчика сохранены {}: {}", telegramId, lastMeterReading);
+        } else {
+            log.warn("Не удалось найти пользователя с telegramId: {}", telegramId);
+        }
     }
     public boolean hasPersonalAccount(Long telegramId) {
         return userRepository.findByTelegramId(telegramId)

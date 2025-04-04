@@ -10,12 +10,10 @@ import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
-import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboard;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
-
 import java.sql.Timestamp;
 import java.util.*;
 
@@ -47,8 +45,8 @@ public class TelegramBot extends TelegramLongPollingBot {
         if (update != null && update.hasMessage()) {
             Message message = update.getMessage();
             Long telegramId = message.getFrom().getId();
-            String text = message.getText();
-
+//            String text = message.getText();
+            String text = update.getMessage().getText();
 
             if (telegramId == null) {
                 log.error("Ошибка: telegramId is null");
@@ -62,37 +60,36 @@ public class TelegramBot extends TelegramLongPollingBot {
                 sendMessage(telegramId, "Спасибо! Ваш номер сохранён: " + phoneNumber + ". Для дальнейшей работы необходимо ввести номер лицевого счета");
                 return; // Прекращаем выполнение после сохранения контакта
             }
-
-            if (update.hasMessage() && update.getMessage().hasText()) {
-//                String text = update.getMessage().getText();
-                Long chatId = update.getMessage().getChatId();
-
-                // Проверяем, что текст не пустой
-                if (text == null || text.trim().isEmpty()) {
-                    text = "Пожалуйста, введите сообщение.";
+            if (update.hasMessage()) {
+                if (update.getMessage().hasText()) {
+//                    String textToSend = update.getMessage().getText();
+                    log.info("Получено текстовое сообщение: {}", text);
+                    sendMessage(update.getMessage().getChatId(), text);
+                } else {
+                    log.warn("Получено не текстовое сообщение от {}. Отправляем предупреждение.", update.getMessage().getChatId());
+                    sendMessage(update.getMessage().getChatId(), "Пожалуйста, отправьте текстовое сообщение.");
                 }
-
-                SendMessage sendMessage = new SendMessage(chatId.toString(), text);
-                try {
-                    execute(sendMessage);
-                } catch (TelegramApiException e) {
-                    e.printStackTrace();
-                }
+            } else {
+                log.warn("Получено сообщение без текста от {}", update.getMessage().getChatId());
             }
-
+//
             if (update.hasMessage() && update.getMessage().hasText()) {
-                String messageText = update.getMessage().getText();
+//
                 Long chatId = update.getMessage().getChatId();
 
-                if (messageText != null && !messageText.isEmpty()) {
-                    SendMessage sendMessage = new SendMessage(String.valueOf(chatId), messageText);
+                if (text!= null && !text.isEmpty()) {
+                    SendMessage sendMessage = new SendMessage(String.valueOf(chatId), text);
                     try {
                         execute(sendMessage);
                     } catch (TelegramApiException e) {
                         throw new RuntimeException(e);
                     }
                 } else {
-                    System.out.println("Ошибка: пустой текст в update.getMessage().getText(), messageText = " + messageText);
+                    System.out.println("Ошибка: пустой текст в update.getMessage().getText(), messageText = " + text);
+                }
+                if (text == null || text.isBlank()) {
+                    log.error("Ошибка: text = null или пуст. Сообщение не будет отправлено.");
+                    return; // Прерываем выполнение, чтобы избежать исключения
                 }
             }
 
@@ -111,40 +108,34 @@ public class TelegramBot extends TelegramLongPollingBot {
                         Integer personalAccount = Integer.valueOf(text);
                         userService.savePersonalAccount(telegramId, personalAccount);
 
-                        sendMessage(telegramId, "✅ Спасибо! Ваш лицевой счет сохранен: " + personalAccount);
+                        sendMessage(telegramId, "✅ Спасибо! Ваш лицевой счет сохранен: " + personalAccount + ". Следующие действия можете выбрать из списка");
                         userStates.remove(telegramId); // Сбрасываем состояние
                     } else {
                         sendMessage(telegramId, "❌ Пожалуйста, введите только цифры.");
                     }
                     return;
                 }
-                if (update.hasMessage() && update.getMessage().hasText()) {
-                    String messageText = update.getMessage().getText();
-                    Long chatId = update.getMessage().getChatId();
-
-                    if (messageText.equals("Ввести показания")) {
-                        sendMessage(chatId, "Введите новое показание счетчика:");
-                    } else if (messageText.matches("\\d+")) {  // Проверяем, ввел ли пользователь число
-                        Integer newReading = Integer.parseInt(messageText);
-                        userService.saveMeterReading(chatId, newReading);
-                        sendMessage(chatId, "Показание сохранено!");
-                    }
+                if ("Ввести показания счетчика".equals(text)) {
+                    userStates.put(telegramId, "AWAITING_METER_READING"); // Сохраняем состояние
+                    return;
                 }
 
+                // Проверяем, ожидает ли пользователь ввод показаний счетчика
+                log.info("User state for {}: {}", telegramId, userStates.get(telegramId));
                 if ("AWAITING_METER_READING".equals(userStates.get(telegramId))) {
                     if (text.matches("\\d+")) {
-                        Integer newReading = Integer.valueOf(text);
-                        userService.saveMeterReading(telegramId, newReading);
-                        sendMessage(telegramId, "✅ Показания сохранены: " + newReading);
-                        userStates.remove(telegramId);
+                        Integer lastMeterReading = Integer.valueOf(text);
+                        userService.saveLastMeterReading(telegramId, lastMeterReading);
+
+                        sendMessage(telegramId, "✅ Спасибо! Последние показания счетчика сохранены: " + lastMeterReading);
+                        userStates.remove(telegramId); // Сбрасываем состояние
                     } else {
-                        sendMessage(telegramId, "❌ Пожалуйста, введите только числа.");
+                        sendMessage(telegramId, "❌ Пожалуйста, введите только цифры.");
                     }
                     return;
                 }
             }
             if (update.hasMessage() && update.getMessage().hasText()) {
-                String messageText = update.getMessage().getText();
 
                 SendMessage sendMessage = new SendMessage();
                 sendMessage.setChatId(String.valueOf(telegramId));
@@ -166,9 +157,9 @@ public class TelegramBot extends TelegramLongPollingBot {
                 }
             }
 
+
             // ✅ Если пользователь отправляет текст
             if (message.hasText()) {
-                String messageText = message.getText();
                 String firstName = message.getChat().getFirstName();
                 String lastName = message.getChat().getLastName();
 
@@ -179,7 +170,8 @@ public class TelegramBot extends TelegramLongPollingBot {
                 user.setUserName(message.getFrom().getUserName());
                 user.setRegisteredAt(new Timestamp(System.currentTimeMillis()));
 
-                switch (messageText) {
+
+                switch (text) {
                     case "/start":
                         userService.registerOrUpdateUser(user);
                         String answer = EmojiParser.parseToUnicode(
@@ -215,11 +207,11 @@ public class TelegramBot extends TelegramLongPollingBot {
                         break;
 
                     case "/phone":
-                        requestPhoneNumber(telegramId);  // Показываем кнопку для отправки номера
+                        requestPhoneNumber(telegramId);  // Кнопка для отправки номера
                         break;
 
                     case "/personal account":
-                        requestPersonalAccount(telegramId);  // Показываем кнопку для отправки номера
+                        requestPersonalAccount(telegramId);  //Кнопка для отправки лицевого счета
                         break;
 
                     case "/meter":
@@ -227,6 +219,8 @@ public class TelegramBot extends TelegramLongPollingBot {
                         requestLastMeterReading(telegramId);
                         userStates.put(telegramId, "AWAITING_METER_READING");
                         break;
+
+
 
                     default:
                         sendMessage(telegramId, "Извините, команда не распознана. Используйте /help для просмотра доступных команд.");
@@ -236,20 +230,26 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
-    private void sendMessage(Long telegramId, String textToSend) {
+    private void sendMessage(Long telegramId, String text) {
+        if (text == null || text.trim().isEmpty()) {
+            log.warn("Попытка отправить пустое сообщение пользователю {}. Подставляем текст по умолчанию.", telegramId);
+            text = "Ошибка: текст сообщения не может быть пустым!";
+        }
+
+        // Проверяем, есть ли состояние пользователя, и устанавливаем значение по умолчанию
+        userStates.putIfAbsent(telegramId, "DEFAULT_STATE");
+
+        log.info("Отправка сообщения пользователю {}: {}", telegramId, text);
+
         SendMessage message = new SendMessage();
         message.setChatId(String.valueOf(telegramId));
-        message.setText(textToSend);
+        message.setText(text);
         message.setReplyMarkup(getMainKeyboard(telegramId));
 
         try {
             execute(message);
         } catch (TelegramApiException e) {
-            log.error("Error occurred: {}", e.getMessage());
-
-        }
-        if (textToSend == null || textToSend.isEmpty()) {
-            textToSend = "Ошибка: текст сообщения не может быть пустым!";
+            log.error("Ошибка при отправке сообщения пользователю {}: {}", telegramId, e.getMessage(), e);
         }
     }
 
@@ -281,14 +281,13 @@ public class TelegramBot extends TelegramLongPollingBot {
     private void requestLastMeterReading(Long telegramId) {
         SendMessage message = new SendMessage();
         message.setChatId(telegramId.toString());
-
-        // Создаём кнопку "Ввести показания"
-        KeyboardRow row = new KeyboardRow();
-        row.add("Ввести показания");
-
+        message.setText("Последние показания счетчика: Введите новые показания, если хотите обновить."); // Добавляем текст
+//        // Создаём кнопку "Ввести показания"
+//        KeyboardRow row7 = new KeyboardRow();
+//
         // Добавляем строку кнопок в клавиатуру
         ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
-        keyboardMarkup.setKeyboard(List.of(row));
+//        keyboardMarkup.setKeyboard(List.of(row7));
         keyboardMarkup.setResizeKeyboard(true);
         keyboardMarkup.setOneTimeKeyboard(false);
         keyboardMarkup.setSelective(true);
@@ -305,14 +304,9 @@ public class TelegramBot extends TelegramLongPollingBot {
     private void requestPersonalAccount(Long telegramId) {
         SendMessage message = new SendMessage();
         message.setChatId(telegramId.toString());
-//        message.setText("Введите номер лицевого счета");
-
-        // Создаем кнопку
-//        KeyboardButton accountButton = new KeyboardButton("Введите номер лицевого счета");
 
         // Добавляем кнопку в ряд
         KeyboardRow row = new KeyboardRow();
-//        row.add(accountButton);
 
         // Формируем клавиатуру
         ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
@@ -337,37 +331,35 @@ public class TelegramBot extends TelegramLongPollingBot {
         KeyboardRow row6 = new KeyboardRow();
         row6.add(new KeyboardButton("Введите номер лицевого счета"));
 
-        KeyboardRow row7 = new KeyboardRow();
-        row7.add(new KeyboardButton("Ввести показания счетчика"));
-
         // Проверяем, есть ли у пользователя номер лицевого счета
         boolean hasPersonalAccount = userService.hasPersonalAccount(telegramId);
 
-        List<KeyboardRow> keyboardRows = new ArrayList<>(List.of(row1, row6, row7));
+        List<KeyboardRow> keyboardRows = new ArrayList<>(List.of(row1, row6));
 
         if (hasPersonalAccount) {
-            KeyboardRow row2 = new KeyboardRow();
-            row2.add(new KeyboardButton("Установка прибора учета"));
-
-            KeyboardRow row3 = new KeyboardRow();
-            row3.add(new KeyboardButton("Подключение к сетям водоотведения"));
-
-            KeyboardRow row4 = new KeyboardRow();
-            row4.add(new KeyboardButton("Подключение к сетям водоснабжения"));
+            KeyboardRow row7 = new KeyboardRow();
+            row7.add(new KeyboardButton("Ввести показания счетчика"));
 
             KeyboardRow row5 = new KeyboardRow();
             row5.add(new KeyboardButton("Подсчитать расход воды"));
 
-            keyboardRows.addAll(List.of(row2, row3, row4, row5));
+//            KeyboardRow row2 = new KeyboardRow();
+//            row2.add(new KeyboardButton("Установка прибора учета"));
+//
+//            KeyboardRow row3 = new KeyboardRow();
+//            row3.add(new KeyboardButton("Подключение к сетям водоотведения"));
+
+//            KeyboardRow row4 = new KeyboardRow();
+//            row4.add(new KeyboardButton("Подключение к сетям водоснабжения"));
+
+            keyboardRows.addAll(List.of(row5, row7));
         }
 
         ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
         keyboardMarkup.setKeyboard(keyboardRows);
         keyboardMarkup.setResizeKeyboard(true);
         keyboardMarkup.setOneTimeKeyboard(false);
-
         return keyboardMarkup;
-
     }
 
     private void executeMessage(SendMessage message) {
